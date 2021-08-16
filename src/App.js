@@ -1,23 +1,28 @@
-import logo from './logo.svg';
-import './App.css';
+import Audio from "./component/Audio";
+import Call from "./hooks/Call";
 
 function App() {
+  const { state, click, btnText, answer } = Call();
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <div className="logo">
+        <h4>TalkTime</h4>
+      </div>
+      <div>
+        <h5>Find someone to talk to.</h5>
+      </div>
+      <div className="audio-animation">
+        <Audio type={state} answer={answer} />
+      </div>
+      <div className="button">
+        <button onClick={click} className={btnText}>
+          {btnText}
+        </button>
+      </div>
+      <div className="footer">
+        <a href="/privacy">Privacy Policy</a> | <a href="/terms">Terms</a>
+      </div>
     </div>
   );
 }
