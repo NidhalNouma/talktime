@@ -11,6 +11,15 @@ const firebaseConfig = {
   measurementId: "G-6049KZ3QMC",
 };
 
+const status = {
+  waiting: "waiting",
+  offerCall: "offerCall",
+  reciveOffer: "reciveOffer",
+  confirmOffer: "confirmOffer",
+  call: "call",
+  answer: "answer",
+};
+
 const diallingCollection = "dialling";
 const callCollection = "call";
 
@@ -25,7 +34,7 @@ export async function createOffer(pc) {
   const id = doc.id;
 
   doc.set({
-    status: "waiting",
+    status: status.waiting,
     time: new Date().getTime(),
     offerId: id,
     answerId: null,
@@ -44,34 +53,14 @@ export function getAllDialling(pc, id, setData, setCall) {
 
     const ans = randomSearch(id, data);
     if (ans) {
-      firestore
-        .collection(diallingCollection)
-        .doc(id)
-        .update({
-          status: "call",
-          answerId: ans.offerId,
-        })
-        .then(() => {
-          // console.log("Document successfully updated!");
-        })
-        .catch((error) => {
-          // The document probably doesn't exist.
-          console.error("Error updating document: ", error);
-        });
-      firestore
-        .collection(diallingCollection)
-        .doc(ans.offerId)
-        .update({
-          status: "answer",
-          answerId: id,
-        })
-        .then(() => {
-          // console.log("Document successfully updated!");
-        })
-        .catch((error) => {
-          // The document probably doesn't exist.
-          console.error("Error updating document: ", error);
-        });
+      updateDialling(id, {
+        status: status.offerCall,
+        answerId: ans.offerId,
+      });
+      updateDialling(ans.offerId, {
+        status: status.reciveOffer,
+        answerId: id,
+      });
     }
   });
 }
@@ -98,8 +87,6 @@ export async function answerCall(id, pc) {
   pc.onicecandidate = (event) => {
     event.candidate && answerCandidates.add(event.candidate.toJSON());
   };
-
-  sleep(3000);
 
   const callData = (await callDoc.get()).data();
 
@@ -189,18 +176,59 @@ function randomSearch(id, data) {
 function checkStatus(id, data, setCall, pc) {
   if (id && data && data.length > 1) {
     const me = data.find((i) => i.offerId === id);
-    const status = me.status;
+    let oId = null;
+    if (me.answerId !== null) oId = data.find((i) => i.offerId === me.answerId);
 
-    if (status === "call") {
+    if (me.status === status.reciveOffer) {
+      updateDialling(id, { status: status.confirmOffer });
+    } else if (me.status === status.offerCall) {
       offerCall(pc, me.offerId);
+    }
+    if (
+      me.status === status.offerCall &&
+      oId &&
+      oId.status === status.confirmOffer
+    ) {
       setCall(me.offerId);
-    } else if (status === "answer") {
-      answerCall(me.answerId, pc);
-      setCall(me.answerId);
+    }
+    if (me.status === status.confirmOffer) {
+      getOffer(me.answerId).then((offer) => {
+        // console.log(offer, me.answerId);
+        if (offer) {
+          answerCall(me.answerId, pc);
+          setCall(me.answerId);
+        }
+      });
     }
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function updateDialling(id, data) {
+  firestore
+    .collection(diallingCollection)
+    .doc(id)
+    .update(data)
+    .then(() => {
+      // console.log("Document successfully updated!");
+    })
+    .catch((error) => {
+      // The document probably doesn't exist.
+      console.error("Error updating document: ", error);
+    });
+}
+
+async function getOffer(id) {
+  const doc = await firestore.collection(callCollection).doc(id).get();
+  if (doc.exists) {
+    return doc.data();
+  }
+  return null;
+}
+
+async function getStatus(id) {
+  const doc = await firestore.collection(diallingCollection).doc(id).get();
+  if (doc.exists) {
+    return doc.data();
+  }
+  return null;
 }
